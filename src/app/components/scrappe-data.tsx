@@ -1,7 +1,7 @@
 // src/app/components/scrappe-data.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -11,29 +11,54 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-
-interface Job {
-  id: string;
-  title: string;
-  company: string;
-  location: string;
-  url: string;
-  posted_at: string;
-  source: string;
-}
+import { Job } from '@/types/job';
 
 export function ScrappeData() {
-  const [jobs] = useState<Job[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleJobsUpdate = (event: CustomEvent<Job[]>) => {
+      setJobs(event.detail);
+      setLoading(false);
+      setError(null);
+    };
+
+    window.addEventListener('jobsUpdate', handleJobsUpdate as EventListener);
+    return () => {
+      window.removeEventListener('jobsUpdate', handleJobsUpdate as EventListener);
+    };
+  }, []);
 
   const saveToSupabase = async () => {
-    const response = await fetch('/api/scrappe', {
-      method: 'POST',
-      body: JSON.stringify(jobs),
-    });
-    if (response.ok) {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/scrapper', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jobs),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save jobs');
+      }
+      
       alert('Jobs saved to Supabase');
+    } catch (error) {
+      console.error('Error saving jobs:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save jobs');
+      alert('Failed to save jobs');
+    } finally {
+      setLoading(false);
     }
   };
+
+  if (loading) return <div className="mt-4">Loading...</div>;
+  if (error) return <div className="mt-4 text-red-500">Error: {error}</div>;
 
   return (
     <div className="mt-8">
